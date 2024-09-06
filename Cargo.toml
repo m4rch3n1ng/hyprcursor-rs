@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 png = "0.17.13"
 resvg = "0.43.0"
+zip = { version = "2.2.0", default-features = false, features = ["bzip2", "deflate", "deflate64", "lzma", "zstd"] }
