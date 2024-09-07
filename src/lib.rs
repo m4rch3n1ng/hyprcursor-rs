@@ -1,5 +1,8 @@
 use manifest::{Kind, Manifest, Meta};
-use resvg::usvg::{Options, Tree};
+use resvg::{
+	tiny_skia::Pixmap,
+	usvg::{Options, Transform, Tree},
+};
 use std::{
 	fmt::Debug,
 	fs::File,
@@ -141,9 +144,7 @@ impl HyprcursorTheme {
 #[derive(Debug)]
 struct Image {
 	data: Data,
-	#[expect(dead_code, reason = "todo")]
 	size: u32,
-	#[expect(dead_code, reason = "todo")]
 	delay: Option<u32>,
 }
 
@@ -151,6 +152,24 @@ struct Image {
 enum Data {
 	Png,
 	Svg(Tree),
+}
+
+impl Data {
+	fn render(&self, size: u32) -> RenderData {
+		match self {
+			Data::Png => todo!(),
+			Data::Svg(tree) => {
+				let transform = Transform::from_scale(
+					size as f32 / tree.size().height(),
+					size as f32 / tree.size().width(),
+				);
+
+				let mut pixmap = Pixmap::new(size, size).unwrap();
+				resvg::render(tree, transform, &mut pixmap.as_mut());
+				RenderData::Svg(pixmap)
+			}
+		}
+	}
 }
 
 impl Debug for Data {
@@ -165,7 +184,6 @@ impl Debug for Data {
 #[derive(Debug)]
 pub struct Hyprcursor {
 	meta: Meta,
-	#[expect(dead_code, reason = "todo")]
 	images: Vec<Image>,
 }
 
@@ -200,5 +218,57 @@ impl Hyprcursor {
 		);
 
 		Some(Hyprcursor { meta, images })
+	}
+
+	pub fn render_frames(&self, size: u32) -> Vec<Frame> {
+		// todo
+		let nearest = self
+			.images
+			.iter()
+			.min_by_key(|img| u32::abs_diff(img.size, size))
+			.unwrap();
+		let nearest_size = nearest.size;
+
+		self.images
+			.iter()
+			.filter(|img| img.size == nearest_size)
+			.map(|img| Frame::new(img, size))
+			.collect()
+	}
+}
+
+enum RenderData {
+	Svg(Pixmap),
+}
+
+impl Debug for RenderData {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			RenderData::Svg(_) => f.debug_struct("Svg").finish_non_exhaustive(),
+		}
+	}
+}
+
+#[derive(Debug)]
+pub struct Frame {
+	data: RenderData,
+	pub delay: Option<u32>,
+}
+
+impl Frame {
+	fn new(img: &Image, size: u32) -> Self {
+		let data = img.data.render(size);
+
+		Frame {
+			data,
+			delay: img.delay,
+		}
+	}
+
+	// todo i think this is rgba?
+	pub fn pixels(&self) -> &[u8] {
+		match &self.data {
+			RenderData::Svg(pixmap) => pixmap.data(),
+		}
 	}
 }
