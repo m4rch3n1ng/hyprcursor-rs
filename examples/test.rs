@@ -1,6 +1,6 @@
 use hyprcursor_rs::HyprcursorTheme;
 
 fn main() {
-	let theme = HyprcursorTheme::load("rose-pine-hyprcursor".to_owned());
+	let theme = HyprcursorTheme::load("rose-pine-hyprcursor");
 	dbg!(theme);
 }

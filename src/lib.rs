@@ -1,6 +1,5 @@
-use std::path::PathBuf;
-
 use manifest::Manifest;
+use std::path::PathBuf;
 
 mod manifest;
 
@@ -25,13 +24,21 @@ fn user_theme_dirs() -> Vec<PathBuf> {
 #[derive(Debug)]
 pub struct HyprcursorTheme {
 	pub name: String,
-	pub path: PathBuf,
+	pub description: Option<String>,
+	pub version: Option<String>,
+	pub author: Option<String>,
+	pub cursors_directory: String,
 
-	pub manifest: Manifest,
+	#[expect(dead_code, reason = "todo")]
+	path: PathBuf,
 }
 
 impl HyprcursorTheme {
-	pub fn load(name: String) -> Option<HyprcursorTheme> {
+	// todo error:
+	// - does not exist
+	// - cursors_directory is not set
+	// - cursors_directory does not exist
+	pub fn load(name: &str) -> Option<HyprcursorTheme> {
 		let data_dirs = xdg_data_dirs();
 		let user_dirs = user_theme_dirs();
 
@@ -41,12 +48,13 @@ impl HyprcursorTheme {
 			};
 
 			for theme in path.read_dir().unwrap().map_while(Result::ok) {
-				let theme = theme.path();
+				let mut theme_dir = theme.path();
 
-				let manifest = if let Ok(file) = std::fs::read_to_string(theme.join("manifest.hl"))
+				let manifest = if let Ok(file) =
+					std::fs::read_to_string(theme_dir.join("manifest.hl"))
 				{
-					Manifest::from_hyprlang(&theme, file)
-				} else if let Ok(_toml) = std::fs::read_to_string(theme.join("manifest.toml")) {
+					Manifest::from_hyprlang(&theme_dir, file)
+				} else if let Ok(_toml) = std::fs::read_to_string(theme_dir.join("manifest.toml")) {
 					// i don't actually fully know how the toml spec is supposed
 					// to look like
 					todo!("toml support");
@@ -56,10 +64,16 @@ impl HyprcursorTheme {
 				let Some(manifest) = manifest else { continue };
 
 				if name == manifest.name {
+					theme_dir.push(&manifest.cursors_directory);
+
 					let theme = HyprcursorTheme {
-						name,
-						path: theme,
-						manifest,
+						name: manifest.name,
+						description: manifest.description,
+						version: manifest.version,
+						author: manifest.author,
+						cursors_directory: manifest.cursors_directory,
+
+						path: theme_dir,
 					};
 					return Some(theme);
 				}
