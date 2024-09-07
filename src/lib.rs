@@ -249,9 +249,12 @@ impl Debug for RenderData {
 	}
 }
 
+// todo figure out what to do with
+// the hotspot
 #[derive(Debug)]
 pub struct Frame {
 	data: RenderData,
+	pub size: u32,
 	pub delay: Option<u32>,
 }
 
@@ -261,6 +264,7 @@ impl Frame {
 
 		Frame {
 			data,
+			size,
 			delay: img.delay,
 		}
 	}
@@ -270,5 +274,13 @@ impl Frame {
 		match &self.data {
 			RenderData::Svg(pixmap) => pixmap.data(),
 		}
+	}
+
+	pub fn width(&self) -> u32 {
+		self.size
+	}
+
+	pub fn height(&self) -> u32 {
+		self.size
 	}
 }
