@@ -1,5 +1,12 @@
-use manifest::Manifest;
-use std::path::PathBuf;
+use manifest::{Kind, Manifest, Meta};
+use resvg::usvg::{Options, Tree};
+use std::{
+	fmt::Debug,
+	fs::File,
+	io::{Read, Seek},
+	path::PathBuf,
+};
+use zip::ZipArchive;
 
 mod manifest;
 
@@ -29,8 +36,8 @@ pub struct HyprcursorTheme {
 	pub author: Option<String>,
 	pub cursors_directory: String,
 
-	#[expect(dead_code, reason = "todo")]
 	path: PathBuf,
+	cache: Vec<Hyprcursor>,
 }
 
 impl HyprcursorTheme {
@@ -38,7 +45,46 @@ impl HyprcursorTheme {
 	// - does not exist
 	// - cursors_directory is not set
 	// - cursors_directory does not exist
+	// - all the stuff with meta.hl
 	pub fn load(name: &str) -> Option<HyprcursorTheme> {
+		let mut theme = HyprcursorTheme::read(name)?;
+
+		for cursor in theme.path.read_dir().ok()?.map_while(Result::ok) {
+			let cursor_path = cursor.path();
+			if !cursor_path.extension().is_some_and(|ext| ext == "hlc") {
+				continue;
+			}
+
+			let archive = File::open(&cursor_path).ok()?;
+			let mut archive = ZipArchive::new(archive).ok()?;
+
+			let (index, is_toml) = if let Some(index) = archive.index_for_path("meta.hl") {
+				(index, false)
+			} else if let Some(index) = archive.index_for_path("meta.toml") {
+				(index, true)
+			} else {
+				todo!();
+			};
+
+			let mut file = archive.by_index(index).ok()?;
+			let mut content = String::new();
+			file.read_to_string(&mut content).ok()?;
+			drop(file);
+
+			let meta = if is_toml {
+				todo!();
+			} else {
+				Meta::from_hyprlang(&cursor_path, content)?
+			};
+
+			let cursor = Hyprcursor::new(meta, archive)?;
+			theme.cache.push(cursor);
+		}
+
+		Some(theme)
+	}
+
+	fn read(name: &str) -> Option<HyprcursorTheme> {
 		let data_dirs = xdg_data_dirs();
 		let user_dirs = user_theme_dirs();
 
@@ -74,6 +120,7 @@ impl HyprcursorTheme {
 						cursors_directory: manifest.cursors_directory,
 
 						path: theme_dir,
+						cache: Vec::new(),
 					};
 					return Some(theme);
 				}
@@ -81,5 +128,71 @@ impl HyprcursorTheme {
 		}
 
 		None
+	}
+}
+
+#[derive(Debug)]
+struct Image {
+	data: Data,
+	#[expect(dead_code, reason = "todo")]
+	size: u32,
+	#[expect(dead_code, reason = "todo")]
+	delay: Option<u32>,
+}
+
+#[expect(dead_code, reason = "todo")]
+enum Data {
+	Png,
+	Svg(Tree),
+}
+
+impl Debug for Data {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Data::Png => f.write_str("Png"),
+			Data::Svg(_) => f.debug_struct("Svg").finish_non_exhaustive(),
+		}
+	}
+}
+
+#[derive(Debug)]
+pub struct Hyprcursor {
+	#[expect(dead_code, reason = "todo")]
+	meta: Meta,
+	#[expect(dead_code, reason = "todo")]
+	images: Vec<Image>,
+}
+
+impl Hyprcursor {
+	// todo error values
+	fn new<R: Read + Seek>(meta: Meta, mut archive: ZipArchive<R>) -> Option<Self> {
+		let mut images = Vec::new();
+		for size in &meta.sizes {
+			let mut file = archive.by_name(&size.file).ok()?;
+			let mut buffer = Vec::new();
+			file.read_to_end(&mut buffer).ok()?;
+
+			let data = match size.kind {
+				Kind::Svg => {
+					let tree = Tree::from_data(&buffer, &Options::default()).ok()?;
+					Data::Svg(tree)
+				}
+				Kind::Png => todo!(),
+			};
+
+			let image = Image {
+				data,
+				size: size.size,
+				delay: size.delay,
+			};
+			images.push(image);
+		}
+
+		debug_assert!(
+			images.iter().all(|img| matches!(img.data, Data::Png))
+				|| images.iter().all(|img| matches!(img.data, Data::Svg(_)))
+		);
+
+		Some(Hyprcursor { meta, images })
 	}
 }
