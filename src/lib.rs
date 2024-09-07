@@ -129,6 +129,13 @@ impl HyprcursorTheme {
 
 		None
 	}
+
+	// todo maybe find_cursor
+	pub fn load_cursor(&self, name: &str) -> Option<&Hyprcursor> {
+		self.cache
+			.iter()
+			.find(|cursor| cursor.meta.overrides.iter().any(|over| over == name))
+	}
 }
 
 #[derive(Debug)]
@@ -157,7 +164,6 @@ impl Debug for Data {
 
 #[derive(Debug)]
 pub struct Hyprcursor {
-	#[expect(dead_code, reason = "todo")]
 	meta: Meta,
 	#[expect(dead_code, reason = "todo")]
 	images: Vec<Image>,
