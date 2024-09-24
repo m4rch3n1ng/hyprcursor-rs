@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-png = { version = "0.17.13", default-features = false }
 resvg = { version = "0.43.0", default-features = false }
 zip = { version = "2.2.0", default-features = false, features = ["bzip2", "deflate", "deflate64", "lzma", "zstd"] }
+zune-png = "0.4.10"
 
 [features]
 default = []

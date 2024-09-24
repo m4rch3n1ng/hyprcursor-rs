@@ -10,6 +10,7 @@ use std::{
 	path::PathBuf,
 };
 use zip::ZipArchive;
+use zune_png::PngDecoder;
 
 mod manifest;
 
@@ -148,16 +149,20 @@ struct Image {
 	delay: Option<u32>,
 }
 
-#[expect(dead_code, reason = "todo")]
 enum Data {
-	Png,
+	Png(Vec<u8>),
 	Svg(Tree),
 }
 
 impl Data {
 	fn render(&self, size: u32) -> RenderData {
 		match self {
-			Data::Png => todo!(),
+			Data::Png(data) => {
+				let mut decoder = PngDecoder::new(data);
+				let pixels = decoder.decode_raw().unwrap();
+
+				RenderData::Png(pixels)
+			}
 			Data::Svg(tree) => {
 				let transform = Transform::from_scale(
 					size as f32 / tree.size().height(),
@@ -175,7 +180,7 @@ impl Data {
 impl Debug for Data {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			Data::Png => f.write_str("Png"),
+			Data::Png(_) => f.debug_struct("Png").finish_non_exhaustive(),
 			Data::Svg(_) => f.debug_struct("Svg").finish_non_exhaustive(),
 		}
 	}
@@ -201,7 +206,7 @@ impl Hyprcursor {
 					let tree = Tree::from_data(&buffer, &Options::default()).ok()?;
 					Data::Svg(tree)
 				}
-				Kind::Png => todo!(),
+				Kind::Png => Data::Png(buffer),
 			};
 
 			let image = Image {
@@ -213,8 +218,9 @@ impl Hyprcursor {
 		}
 
 		debug_assert!(
-			images.iter().all(|img| matches!(img.data, Data::Png))
-				|| images.iter().all(|img| matches!(img.data, Data::Svg(_)))
+			images.iter().all(|img| matches!(img.data, Data::Png(_)))
+				|| images.iter().all(|img| matches!(img.data, Data::Svg(_))),
+			"there should only ever be either png or svg, not both"
 		);
 
 		Some(Hyprcursor { meta, images })
@@ -239,12 +245,14 @@ impl Hyprcursor {
 
 enum RenderData {
 	Svg(Pixmap),
+	Png(Vec<u8>),
 }
 
 impl Debug for RenderData {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			RenderData::Svg(_) => f.debug_struct("Svg").finish_non_exhaustive(),
+			RenderData::Png(_) => f.debug_list().entry(&..).finish(),
 		}
 	}
 }
@@ -273,6 +281,7 @@ impl Frame {
 	pub fn pixels(&self) -> &[u8] {
 		match &self.data {
 			RenderData::Svg(pixmap) => pixmap.data(),
+			RenderData::Png(pixels) => pixels,
 		}
 	}
 
