@@ -1,4 +1,4 @@
-use crate::manifest::MetaError;
+use crate::meta::MetaError;
 use std::path::PathBuf;
 use zip::result::ZipError;
 

@@ -1,4 +1,5 @@
-use manifest::{Kind, Manifest, Meta};
+use self::manifest::Manifest;
+use self::meta::Meta;
 use resvg::{
 	tiny_skia::Pixmap,
 	usvg::{Options, Transform, Tree},
@@ -14,6 +15,7 @@ use zune_png::PngDecoder;
 
 mod error;
 mod manifest;
+pub mod meta;
 
 pub use self::error::Error;
 
@@ -216,11 +218,11 @@ impl Hyprcursor {
 
 			// todo reject if both png and svg
 			let data = match size.kind {
-				Kind::Svg => {
+				meta::Kind::Svg => {
 					let tree = Tree::from_data(&buffer, &Options::default()).ok()?;
 					Data::Svg(tree)
 				}
-				Kind::Png => {
+				meta::Kind::Png => {
 					// todo validate png buffer
 					Data::Png(buffer)
 				}
