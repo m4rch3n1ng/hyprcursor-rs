@@ -201,6 +201,7 @@ impl Hyprcursor {
 			let mut buffer = Vec::new();
 			file.read_to_end(&mut buffer).ok()?;
 
+			// todo reject if both png and svg
 			let data = match size.kind {
 				Kind::Svg => {
 					let tree = Tree::from_data(&buffer, &Options::default()).ok()?;
@@ -227,7 +228,7 @@ impl Hyprcursor {
 	}
 
 	pub fn render_frames(&self, size: u32) -> Vec<Frame> {
-		// todo
+		// todo do this only for pngs
 		let nearest = self
 			.images
 			.iter()

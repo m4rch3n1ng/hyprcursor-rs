@@ -100,6 +100,7 @@ impl Size {
 
 		// todo give out error
 		let delay = split.next().and_then(|delay| delay.parse::<u32>().ok());
+		delay.inspect(|delay| assert!(*delay > 0));
 
 		Some(Size {
 			size,
