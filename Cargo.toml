@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 resvg = { version = "0.43.0", default-features = false }
+thiserror = "1.0.64"
 zip = { version = "2.2.0", default-features = false, features = ["bzip2", "deflate", "deflate64", "lzma", "zstd"] }
 zune-png = "0.4.10"
 

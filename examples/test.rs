@@ -9,7 +9,7 @@ use zune_png::{
 };
 
 fn main() {
-	let theme = HyprcursorTheme::load("Nordzy-cursors-white").unwrap();
+	let theme = HyprcursorTheme::load("rose-pine-hyprcursor").unwrap();
 	let cursor = theme.load_cursor("default").unwrap();
 
 	let size = 24;

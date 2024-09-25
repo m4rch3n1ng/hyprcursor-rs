@@ -12,7 +12,10 @@ use std::{
 use zip::ZipArchive;
 use zune_png::PngDecoder;
 
+mod error;
 mod manifest;
+
+pub use self::error::Error;
 
 fn xdg_data_dirs() -> Vec<PathBuf> {
 	let Some(data_dirs) = std::env::var_os("XDG_DATA_DIRS") else {
@@ -50,42 +53,52 @@ impl HyprcursorTheme {
 	// - cursors_directory is not set
 	// - cursors_directory does not exist
 	// - all the stuff with meta.hl
-	pub fn load(name: &str) -> Option<HyprcursorTheme> {
-		let mut theme = HyprcursorTheme::read(name)?;
+	pub fn load(name: &str) -> Result<HyprcursorTheme, Error> {
+		let mut theme = HyprcursorTheme::read(name).ok_or(Error::ThemeNotFound)?;
 
-		for cursor in theme.path.read_dir().ok()?.map_while(Result::ok) {
+		for cursor in theme.path.read_dir()?.map_while(Result::ok) {
 			let cursor_path = cursor.path();
 			if !cursor_path.extension().is_some_and(|ext| ext == "hlc") {
 				continue;
 			}
 
-			let archive = File::open(&cursor_path).ok()?;
-			let mut archive = ZipArchive::new(archive).ok()?;
+			let archive = File::open(&cursor_path)?;
+			let mut archive = ZipArchive::new(archive).map_err(|err| Error::ZipError {
+				err,
+				path: cursor_path.clone(),
+			})?;
 
 			let (index, is_toml) = if let Some(index) = archive.index_for_path("meta.hl") {
 				(index, false)
 			} else if let Some(index) = archive.index_for_path("meta.toml") {
 				(index, true)
 			} else {
-				todo!();
+				return Err(Error::MetaNotFound(cursor_path));
 			};
 
-			let mut file = archive.by_index(index).ok()?;
+			let mut file = archive.by_index(index).map_err(|err| Error::ZipError {
+				err,
+				path: cursor_path.clone(),
+			})?;
+
 			let mut content = String::new();
-			file.read_to_string(&mut content).ok()?;
+			file.read_to_string(&mut content)?;
 			drop(file);
 
 			let meta = if is_toml {
 				todo!();
 			} else {
-				Meta::from_hyprlang(&cursor_path, content)?
+				Meta::from_hyprlang(&cursor_path, content).map_err(|err| {
+					let path = cursor_path.join(if is_toml { "meta.toml" } else { "meta.hl" });
+					Error::MetaError { err, path }
+				})?
 			};
 
-			let cursor = Hyprcursor::new(meta, archive)?;
+			let cursor = Hyprcursor::new(meta, archive).ok_or(Error::Other)?;
 			theme.cache.push(cursor);
 		}
 
-		Some(theme)
+		Ok(theme)
 	}
 
 	fn read(name: &str) -> Option<HyprcursorTheme> {
@@ -207,7 +220,10 @@ impl Hyprcursor {
 					let tree = Tree::from_data(&buffer, &Options::default()).ok()?;
 					Data::Svg(tree)
 				}
-				Kind::Png => Data::Png(buffer),
+				Kind::Png => {
+					// todo validate png buffer
+					Data::Png(buffer)
+				}
 			};
 
 			let image = Image {

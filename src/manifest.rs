@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, str::FromStr};
 
 /// temporary struct to parse into
 #[derive(Debug)]
@@ -59,56 +59,11 @@ impl Manifest {
 	}
 }
 
-#[derive(Debug)]
-pub enum ResizeAlgorithm {
-	None,
-	Bilinear,
-	Nearest,
-}
-
-#[derive(Debug)]
-pub struct Size {
-	pub size: u32,
-	pub file: String,
-	pub delay: Option<u32>,
-
-	pub kind: Kind,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-	Png,
-	Svg,
-}
-
-impl Size {
-	// todo error
-	// - invalid kind
-	// - missing / invalid size
-	// - missing file
-	fn from_str(value: &str) -> Option<Size> {
-		let mut split = value.split(',').map(str::trim);
-
-		let size = split.next()?.parse::<u32>().ok()?;
-		let file = split.next()?.to_owned();
-
-		let kind = match Path::new(&file).extension()?.to_str().unwrap() {
-			"png" => Kind::Png,
-			"svg" => Kind::Svg,
-			_ => return None,
-		};
-
-		// todo give out error
-		let delay = split.next().and_then(|delay| delay.parse::<u32>().ok());
-		delay.inspect(|delay| assert!(*delay > 0));
-
-		Some(Size {
-			size,
-			file,
-			delay,
-			kind,
-		})
-	}
+/// error when parsing `meta.hl` / `meta.toml`
+#[derive(Debug, thiserror::Error)]
+pub enum MetaError {
+	#[error("other")]
+	Other,
 }
 
 /// `meta.hl` / `meta.toml`
@@ -134,8 +89,8 @@ impl Meta {
 	// - missing file
 	// - both svg and png specified
 	// - no sizes set
-	pub fn from_hyprlang(path: &Path, file: String) -> Option<Self> {
-		let name = path.file_stem().unwrap().to_str()?.to_owned();
+	pub fn from_hyprlang(path: &Path, file: String) -> Result<Self, MetaError> {
+		let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
 
 		let mut resize_algorithm: Option<ResizeAlgorithm> = None;
 		let mut hotspot_x: Option<f32> = None;
@@ -161,11 +116,11 @@ impl Meta {
 						"none" => ResizeAlgorithm::None,
 						"bilinear" => ResizeAlgorithm::Bilinear,
 						"nearest" => ResizeAlgorithm::Nearest,
-						_ => return None,
+						_ => return Err(MetaError::Other),
 					})
 				}
-				"hotspot_x" => hotspot_x = Some(value.parse().ok()?),
-				"hotspot_y" => hotspot_y = Some(value.parse().ok()?),
+				"hotspot_x" => hotspot_x = Some(value.parse().map_err(|_| MetaError::Other)?),
+				"hotspot_y" => hotspot_y = Some(value.parse().map_err(|_| MetaError::Other)?),
 
 				// todo split at ';'
 				"define_override" => overrides.push(value.to_owned()),
@@ -173,7 +128,7 @@ impl Meta {
 					let size = Size::from_str(value)?;
 					if let Some(kind) = &kind {
 						if *kind != size.kind {
-							return None;
+							return Err(MetaError::Other);
 						}
 					} else {
 						kind = Some(size.kind)
@@ -187,10 +142,10 @@ impl Meta {
 		}
 
 		let resize_algorithm = resize_algorithm.unwrap_or(ResizeAlgorithm::None);
-		let hotspot_x = hotspot_x?;
-		let hotspot_y = hotspot_y?;
+		let hotspot_x = hotspot_x.ok_or(MetaError::Other)?;
+		let hotspot_y = hotspot_y.ok_or(MetaError::Other)?;
 
-		Some(Meta {
+		Ok(Meta {
 			name,
 
 			resize_algorithm,
@@ -201,4 +156,69 @@ impl Meta {
 			sizes,
 		})
 	}
+}
+
+#[derive(Debug)]
+pub enum ResizeAlgorithm {
+	None,
+	Bilinear,
+	Nearest,
+}
+
+#[derive(Debug)]
+pub struct Size {
+	pub size: u32,
+	pub file: String,
+	pub delay: Option<u32>,
+
+	pub kind: Kind,
+}
+
+impl FromStr for Size {
+	type Err = MetaError;
+
+	// todo error
+	// - invalid kind
+	// - missing / invalid size
+	// - missing file
+	fn from_str(value: &str) -> Result<Size, Self::Err> {
+		let mut split = value.split(',').map(str::trim);
+
+		let size = split
+			.next()
+			.ok_or(MetaError::Other)?
+			.parse::<u32>()
+			.map_err(|_| MetaError::Other)?;
+		let file = split.next().ok_or(MetaError::Other)?.to_owned();
+
+		// Error::MissingExtension
+		let kind = match Path::new(&file)
+			.extension()
+			.ok_or(MetaError::Other)?
+			.to_str()
+			.unwrap()
+		{
+			"png" => Kind::Png,
+			"svg" => Kind::Svg,
+			// Error::MissingExtension
+			_ => return Err(MetaError::Other),
+		};
+
+		// todo give out error
+		let delay = split.next().and_then(|delay| delay.parse::<u32>().ok());
+		delay.inspect(|delay| assert!(*delay > 0));
+
+		Ok(Size {
+			size,
+			file,
+			delay,
+			kind,
+		})
+	}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+	Png,
+	Svg,
 }
