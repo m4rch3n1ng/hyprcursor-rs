@@ -1,4 +1,4 @@
-use std::{path::Path, };
+use std::path::Path;
 
 /// temporary struct to parse into
 #[derive(Debug)]
@@ -7,13 +7,11 @@ pub struct Manifest {
 	pub description: Option<String>,
 	pub version: Option<String>,
 	pub author: Option<String>,
-	pub cursors_directory: String,
+	pub cursors_directory: Option<String>,
 }
 
 impl Manifest {
 	// todo make like a proper parser for this godforsaken format
-	// todo error variants:
-	// - cursors_directory not set
 	pub fn from_hyprlang(dir: &Path, file: String) -> Option<Self> {
 		let mut name = None;
 		let mut description = None;
@@ -39,15 +37,13 @@ impl Manifest {
 			}
 		}
 
-		let name = name
-			.or_else(|| {
-				// hyprcursor uses stem so i will use it too
-				dir.file_stem()
-					.and_then(|stem| stem.to_str())
-					.map(ToOwned::to_owned)
-			})
-			.unwrap_or_default();
-		let cursors_directory = cursors_directory?;
+		let name = name.or_else(|| {
+			// the hyprcursor reference implementation
+			// uses .stem() so i will use it too
+			dir.file_stem()
+				.and_then(|stem| stem.to_str())
+				.map(ToOwned::to_owned)
+		})?;
 
 		Some(Manifest {
 			name,

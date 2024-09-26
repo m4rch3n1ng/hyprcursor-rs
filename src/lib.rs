@@ -56,7 +56,7 @@ impl HyprcursorTheme {
 	// - cursors_directory does not exist
 	// - all the stuff with meta.hl
 	pub fn load(name: &str) -> Result<HyprcursorTheme, Error> {
-		let mut theme = HyprcursorTheme::read(name).ok_or(Error::ThemeNotFound)?;
+		let mut theme = HyprcursorTheme::read(name)?;
 
 		for cursor in theme.path.read_dir()?.map_while(Result::ok) {
 			let cursor_path = cursor.path();
@@ -103,7 +103,7 @@ impl HyprcursorTheme {
 		Ok(theme)
 	}
 
-	fn read(name: &str) -> Option<HyprcursorTheme> {
+	fn read(name: &str) -> Result<HyprcursorTheme, Error> {
 		let data_dirs = xdg_data_dirs();
 		let user_dirs = user_theme_dirs();
 
@@ -129,24 +129,26 @@ impl HyprcursorTheme {
 				let Some(manifest) = manifest else { continue };
 
 				if name == manifest.name {
-					theme_dir.push(&manifest.cursors_directory);
+					let cursors_directory = manifest.cursors_directory.ok_or(Error::Other)?;
+
+					theme_dir.push(&cursors_directory);
 
 					let theme = HyprcursorTheme {
 						name: manifest.name,
 						description: manifest.description,
 						version: manifest.version,
 						author: manifest.author,
-						cursors_directory: manifest.cursors_directory,
+						cursors_directory,
 
 						path: theme_dir,
 						cache: Vec::new(),
 					};
-					return Some(theme);
+					return Ok(theme);
 				}
 			}
 		}
 
-		None
+		Err(Error::ThemeNotFound)
 	}
 
 	// todo maybe find_cursor
