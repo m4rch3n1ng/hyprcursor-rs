@@ -1,10 +1,40 @@
+use crate::error::{InvalidFloat, InvalidInt};
 use std::{path::Path, str::FromStr};
 
 /// error when parsing `meta.hl` / `meta.toml`
 #[derive(Debug, thiserror::Error)]
 pub enum MetaError {
-	#[error("# todo other")]
-	Other,
+	#[error("no size defined")]
+	NoSizeDefined,
+	#[error("invalid resize algorithm {0:?}")]
+	InvalidResizeAlgorithm(String),
+	#[error("hotspot_x not set")]
+	MissingHotspotX,
+	#[error("hotspot_x is invalid")]
+	InvalidHotspotX(#[source] InvalidFloat),
+	#[error("hotspot_y not set")]
+	MissingHotspotY,
+	#[error("hotspot_y is invalid")]
+	InvalidHotspotY(#[source] InvalidFloat),
+
+	/// size definition empty
+	#[error("size definition empty")]
+	EmptyDefinition,
+	#[error("invalid size")]
+	InvalidSize(#[source] InvalidInt),
+	#[error("file not set in size definition")]
+	FileMissing,
+	#[error("no extension specified for file")]
+	MissingExtension,
+	#[error("unknown extension {0}, expected svg or png")]
+	InvalidExtension(String),
+	#[error("invalid delay")]
+	InvalidDelay(#[source] InvalidInt),
+	#[error("delay has to be > 0")]
+	DelayIsZero,
+
+	#[error("both png and svg defined")]
+	MoreThanOneFormat,
 }
 
 /// `meta.hl` / `meta.toml`
@@ -21,11 +51,6 @@ pub struct Meta {
 }
 
 impl Meta {
-	// todo: error variant
-	// - invalid size
-	// - missing file
-	// - both svg and png specified
-	// - no sizes set
 	pub fn from_hyprlang(path: &Path, file: String) -> Result<Self, MetaError> {
 		let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
 
@@ -53,11 +78,30 @@ impl Meta {
 						"none" => ResizeAlgorithm::None,
 						"bilinear" => ResizeAlgorithm::Bilinear,
 						"nearest" => ResizeAlgorithm::Nearest,
-						_ => return Err(MetaError::Other),
+						algorithm => {
+							return Err(MetaError::InvalidResizeAlgorithm(algorithm.to_owned()))
+						}
 					})
 				}
-				"hotspot_x" => hotspot_x = Some(value.parse().map_err(|_| MetaError::Other)?),
-				"hotspot_y" => hotspot_y = Some(value.parse().map_err(|_| MetaError::Other)?),
+
+				"hotspot_x" => {
+					let hotx = value.parse::<f32>().map_err(|err| {
+						MetaError::InvalidHotspotX(InvalidFloat {
+							err,
+							number: value.to_owned(),
+						})
+					})?;
+					hotspot_x = Some(hotx)
+				}
+				"hotspot_y" => {
+					let hoty = value.parse::<f32>().map_err(|err| {
+						MetaError::InvalidHotspotX(InvalidFloat {
+							err,
+							number: value.to_owned(),
+						})
+					})?;
+					hotspot_y = Some(hoty)
+				}
 
 				// todo split at ';'
 				"define_override" => overrides.push(value.to_owned()),
@@ -65,7 +109,7 @@ impl Meta {
 					let size = Size::from_str(value)?;
 					if let Some(kind) = &kind {
 						if *kind != size.kind {
-							return Err(MetaError::Other);
+							return Err(MetaError::MoreThanOneFormat);
 						}
 					} else {
 						kind = Some(size.kind)
@@ -78,9 +122,13 @@ impl Meta {
 			}
 		}
 
+		if sizes.is_empty() {
+			return Err(MetaError::NoSizeDefined);
+		}
+
 		let resize_algorithm = resize_algorithm.unwrap_or(ResizeAlgorithm::None);
-		let hotspot_x = hotspot_x.ok_or(MetaError::Other)?;
-		let hotspot_y = hotspot_y.ok_or(MetaError::Other)?;
+		let hotspot_x = hotspot_x.ok_or(MetaError::MissingHotspotX)?;
+		let hotspot_y = hotspot_y.ok_or(MetaError::MissingHotspotY)?;
 
 		Ok(Meta {
 			name,
@@ -114,36 +162,41 @@ pub struct Size {
 impl FromStr for Size {
 	type Err = MetaError;
 
-	// todo error
-	// - invalid kind
-	// - missing / invalid size
-	// - missing file
 	fn from_str(value: &str) -> Result<Size, Self::Err> {
 		let mut split = value.split(',').map(str::trim);
 
-		let size = split
-			.next()
-			.ok_or(MetaError::Other)?
-			.parse::<u32>()
-			.map_err(|_| MetaError::Other)?;
-		let file = split.next().ok_or(MetaError::Other)?.to_owned();
+		let size = split.next().ok_or(MetaError::EmptyDefinition)?;
+		let size = size.parse::<u32>().map_err(|err| {
+			MetaError::InvalidSize(InvalidInt {
+				err,
+				number: size.to_owned(),
+			})
+		})?;
 
-		// Error::MissingExtension
+		let file = split.next().ok_or(MetaError::FileMissing)?.to_owned();
+
 		let kind = match Path::new(&file)
 			.extension()
-			.ok_or(MetaError::Other)?
+			.ok_or(MetaError::MissingExtension)?
 			.to_str()
-			.unwrap()
 		{
-			"png" => Kind::Png,
-			"svg" => Kind::Svg,
-			// Error::MissingExtension
-			_ => return Err(MetaError::Other),
+			Some("png") => Kind::Png,
+			Some("svg") => Kind::Svg,
+			Some(ext) => return Err(MetaError::InvalidExtension(ext.to_owned())),
+			None => return Err(MetaError::MissingExtension),
 		};
 
-		// todo give out error
-		let delay = split.next().and_then(|delay| delay.parse::<u32>().ok());
-		delay.inspect(|delay| assert!(*delay > 0));
+		let delay = split
+			.next()
+			.map(|delay| match delay.parse::<u32>() {
+				Err(err) => Err(MetaError::InvalidDelay(InvalidInt {
+					err,
+					number: delay.to_owned(),
+				})),
+				Ok(0) => Err(MetaError::DelayIsZero),
+				Ok(e) => Ok(e),
+			})
+			.transpose()?;
 
 		Ok(Size {
 			size,

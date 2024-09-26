@@ -29,3 +29,19 @@ pub enum Error {
 	#[error("todo more proper error handling")]
 	Other,
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("error parsing number {number}")]
+pub struct InvalidInt {
+	#[source]
+	pub err: std::num::ParseIntError,
+	pub number: String,
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("error parsing number {number}")]
+pub struct InvalidFloat {
+	#[source]
+	pub err: std::num::ParseFloatError,
+	pub number: String,
+}

@@ -216,7 +216,6 @@ impl Hyprcursor {
 			let mut buffer = Vec::new();
 			file.read_to_end(&mut buffer).ok()?;
 
-			// todo reject if both png and svg
 			let data = match size.kind {
 				meta::Kind::Svg => {
 					let tree = Tree::from_data(&buffer, &Options::default()).ok()?;
