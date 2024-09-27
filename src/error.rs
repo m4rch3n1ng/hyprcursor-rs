@@ -8,6 +8,11 @@ pub enum Error {
 	#[error("couldn't find theme")]
 	ThemeNotFound,
 
+	#[error("cursors_directory not set in manifest file")]
+	CursorsDirectoryNotSet,
+	#[error("cursors_directory {0:?} doesn't exist")]
+	CursorsDirectoryDoesntExist(String),
+
 	#[error("error parsing meta in {path:?}")]
 	MetaError {
 		#[source]
@@ -34,9 +39,6 @@ pub enum Error {
 		err: UsvgErr,
 		file: String,
 	},
-
-	#[error("todo more proper error handling")]
-	Other,
 }
 
 #[derive(Debug, thiserror::Error)]

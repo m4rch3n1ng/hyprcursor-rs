@@ -1,3 +1,17 @@
+//! a rust implementation of the hyprcursor format
+//!
+//! ```
+//! use hyprcursor_rs::HyprcursorTheme;
+//!
+//! let theme = HyprcursorTheme::load("rose-pine-hyprcursor")?;
+//! let cursor = theme.load_cursor("default").unwrap();
+//!
+//! let size = 24;
+//! let frames = cursor.render_frames(size);
+//!
+//! # Ok::<(), hyprcursor_rs::Error>(())
+//! ```
+
 use self::manifest::Manifest;
 use self::meta::Meta;
 use resvg::{
@@ -37,12 +51,18 @@ fn user_theme_dirs() -> Vec<PathBuf> {
 	vec![]
 }
 
+/// a hyprcursor theme
 #[derive(Debug)]
 pub struct HyprcursorTheme {
+	/// the name of this theme
 	pub name: String,
+	/// the description of this theme
 	pub description: Option<String>,
+	/// the version of this theme
 	pub version: Option<String>,
+	/// the author of this theme
 	pub author: Option<String>,
+	/// the directory where cursors are stored
 	pub cursors_directory: String,
 
 	path: PathBuf,
@@ -50,15 +70,10 @@ pub struct HyprcursorTheme {
 }
 
 impl HyprcursorTheme {
-	// todo error:
-	// - does not exist
-	// - cursors_directory is not set
-	// - cursors_directory does not exist
-	// - all the stuff with meta.hl
 	pub fn load(name: &str) -> Result<HyprcursorTheme, Error> {
 		let mut theme = HyprcursorTheme::read(name)?;
 
-		for cursor in theme.path.read_dir()?.map_while(Result::ok) {
+		for cursor in theme.path.read_dir()?.map(Result::unwrap) {
 			let cursor_path = cursor.path();
 			if !cursor_path.extension().is_some_and(|ext| ext == "hlc") {
 				continue;
@@ -129,9 +144,15 @@ impl HyprcursorTheme {
 				let Some(manifest) = manifest else { continue };
 
 				if name == manifest.name {
-					let cursors_directory = manifest.cursors_directory.ok_or(Error::Other)?;
+					let cursors_directory = manifest
+						.cursors_directory
+						.ok_or(Error::CursorsDirectoryNotSet)?;
 
 					theme_dir.push(&cursors_directory);
+
+					if !theme_dir.exists() || !theme_dir.is_dir() {
+						return Err(Error::CursorsDirectoryDoesntExist(cursors_directory));
+					}
 
 					let theme = HyprcursorTheme {
 						name: manifest.name,
@@ -210,7 +231,6 @@ pub struct Hyprcursor {
 }
 
 impl Hyprcursor {
-	// todo error values
 	fn new<R: Read + Seek>(
 		meta: Meta,
 		archive_path: &Path,
@@ -262,6 +282,7 @@ impl Hyprcursor {
 
 	pub fn render_frames(&self, size: u32) -> Vec<Frame> {
 		// todo do this only for pngs
+		// todo resize pngs
 		let nearest = self
 			.images
 			.iter()
