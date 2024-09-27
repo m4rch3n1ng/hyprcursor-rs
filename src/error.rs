@@ -1,4 +1,5 @@
 use crate::meta::MetaError;
+use resvg::usvg::Error as UsvgErr;
 use std::path::PathBuf;
 use zip::result::ZipError;
 
@@ -19,11 +20,19 @@ pub enum Error {
 	// todo attach more information
 	#[error("io error")]
 	Io(#[from] std::io::Error),
+	// todo attach information for file not found errors
 	#[error("error unzipping {path:?}")]
 	ZipError {
 		#[source]
 		err: ZipError,
 		path: PathBuf,
+	},
+	/// svg rendering error
+	#[error("error rendering svg file {file:?}")]
+	UsvgErr {
+		#[source]
+		err: UsvgErr,
+		file: String,
 	},
 
 	#[error("todo more proper error handling")]

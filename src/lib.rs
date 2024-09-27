@@ -8,7 +8,7 @@ use std::{
 	fmt::Debug,
 	fs::File,
 	io::{Read, Seek},
-	path::PathBuf,
+	path::{Path, PathBuf},
 };
 use zip::ZipArchive;
 use zune_png::PngDecoder;
@@ -96,7 +96,7 @@ impl HyprcursorTheme {
 				})?
 			};
 
-			let cursor = Hyprcursor::new(meta, archive).ok_or(Error::Other)?;
+			let cursor = Hyprcursor::new(meta, &cursor_path, archive)?;
 			theme.cache.push(cursor);
 		}
 
@@ -211,16 +211,30 @@ pub struct Hyprcursor {
 
 impl Hyprcursor {
 	// todo error values
-	fn new<R: Read + Seek>(meta: Meta, mut archive: ZipArchive<R>) -> Option<Self> {
+	fn new<R: Read + Seek>(
+		meta: Meta,
+		archive_path: &Path,
+		mut archive: ZipArchive<R>,
+	) -> Result<Self, Error> {
 		let mut images = Vec::new();
 		for size in &meta.sizes {
-			let mut file = archive.by_name(&size.file).ok()?;
+			let mut file = archive.by_name(&size.file).map_err(|err| Error::ZipError {
+				err,
+				path: archive_path.to_owned(),
+			})?;
+
 			let mut buffer = Vec::new();
-			file.read_to_end(&mut buffer).ok()?;
+			file.read_to_end(&mut buffer)?;
 
 			let data = match size.kind {
 				meta::Kind::Svg => {
-					let tree = Tree::from_data(&buffer, &Options::default()).ok()?;
+					let tree = Tree::from_data(&buffer, &Options::default()).map_err(|err| {
+						Error::UsvgErr {
+							err,
+							file: size.file.clone(),
+						}
+					})?;
+
 					Data::Svg(tree)
 				}
 				meta::Kind::Png => {
@@ -243,7 +257,7 @@ impl Hyprcursor {
 			"there should only ever be either png or svg, not both"
 		);
 
-		Some(Hyprcursor { meta, images })
+		Ok(Hyprcursor { meta, images })
 	}
 
 	pub fn render_frames(&self, size: u32) -> Vec<Frame> {
