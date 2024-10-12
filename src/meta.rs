@@ -48,6 +48,8 @@ pub struct Meta {
 
 	pub overrides: Vec<String>,
 	pub sizes: Vec<Size>,
+
+	pub(crate) kind: Kind,
 }
 
 impl Meta {
@@ -130,6 +132,8 @@ impl Meta {
 		let hotspot_x = hotspot_x.ok_or(MetaError::MissingHotspotX)?;
 		let hotspot_y = hotspot_y.ok_or(MetaError::MissingHotspotY)?;
 
+		let kind = kind.expect("sizes is not empty so kind should be some");
+
 		Ok(Meta {
 			name,
 
@@ -139,6 +143,8 @@ impl Meta {
 
 			overrides,
 			sizes,
+
+			kind,
 		})
 	}
 }

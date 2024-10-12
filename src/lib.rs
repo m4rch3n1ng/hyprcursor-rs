@@ -281,20 +281,28 @@ impl Hyprcursor {
 	}
 
 	pub fn render_frames(&self, size: u32) -> Vec<Frame> {
-		// todo do this only for pngs
-		// todo resize pngs
-		let nearest = self
-			.images
-			.iter()
-			.min_by_key(|img| u32::abs_diff(img.size, size))
-			.unwrap();
-		let nearest_size = nearest.size;
+		match self.meta.kind {
+			meta::Kind::Png => {
+				// todo resize pngs
+				let nearest = self
+					.images
+					.iter()
+					.min_by_key(|img| u32::abs_diff(img.size, size))
+					.unwrap();
+				let nearest_size = nearest.size;
 
-		self.images
-			.iter()
-			.filter(|img| img.size == nearest_size)
-			.map(|img| Frame::new(img, size))
-			.collect()
+				self.images
+					.iter()
+					.filter(|img| img.size == nearest_size)
+					.map(|img| Frame::new(img, size))
+					.collect()
+			}
+			meta::Kind::Svg => self
+				.images
+				.iter()
+				.map(|img| Frame::new(img, size))
+				.collect(),
+		}
 	}
 }
 
