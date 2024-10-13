@@ -46,9 +46,17 @@ fn xdg_data_dirs() -> Vec<PathBuf> {
 		.collect()
 }
 
-// todo ~/.local/share/icons, ~/.icons
-fn user_theme_dirs() -> Vec<PathBuf> {
-	vec![]
+fn user_theme_dirs() -> [PathBuf; 2] {
+	let home = std::env::var_os("XDG_HOME")
+		.or_else(|| std::env::var_os("HOME"))
+		.expect("$HOME is not set");
+	let home = PathBuf::from(home);
+
+	let xdg_data_home = std::env::var_os("XDG_DATA_HOME")
+		.map(PathBuf::from)
+		.unwrap_or_else(|| home.join(".local/share"));
+
+	[xdg_data_home.join("icons"), home.join(".icons")]
 }
 
 /// a hyprcursor theme
@@ -119,10 +127,10 @@ impl HyprcursorTheme {
 	}
 
 	fn read(name: &str) -> Result<HyprcursorTheme, Error> {
-		let data_dirs = xdg_data_dirs();
 		let user_dirs = user_theme_dirs();
+		let data_dirs = xdg_data_dirs();
 
-		for path in data_dirs.into_iter().chain(user_dirs.into_iter()) {
+		for path in user_dirs.into_iter().chain(data_dirs.into_iter()) {
 			if !path.is_dir() {
 				continue;
 			};
