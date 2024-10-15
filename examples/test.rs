@@ -23,6 +23,6 @@ fn main() {
 	let file = File::create("image.png").unwrap();
 	let mut file = BufWriter::new(file);
 
-	let pxiels = encoder.encode();
-	file.write_all(&pxiels).unwrap();
+	let pixels = encoder.encode();
+	file.write_all(&pixels).unwrap();
 }
