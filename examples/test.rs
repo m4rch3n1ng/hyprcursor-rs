@@ -1,12 +1,6 @@
 use hyprcursor_rs::HyprcursorTheme;
-use std::{
-	fs::File,
-	io::{BufWriter, Write},
-};
-use zune_png::{
-	zune_core::{bit_depth::BitDepth, colorspace::ColorSpace, options::EncoderOptions},
-	PngEncoder,
-};
+use png::Encoder as PngEncoder;
+use std::fs::File;
 
 fn main() {
 	let theme = HyprcursorTheme::load("rose-pine-hyprcursor").unwrap();
@@ -16,13 +10,12 @@ fn main() {
 	let frames = cursor.render_frames(size);
 	let frame = &frames[0];
 
-	let size = size as usize;
-	let options = EncoderOptions::new(size, size, ColorSpace::RGBA, BitDepth::Eight);
-	let mut encoder = PngEncoder::new(frame.pixels(), options);
-
 	let file = File::create("image.png").unwrap();
-	let mut file = BufWriter::new(file);
 
-	let pixels = encoder.encode();
-	file.write_all(&pixels).unwrap();
+	let mut encoder = PngEncoder::new(file, frame.size, frame.size);
+	encoder.set_color(png::ColorType::Rgba);
+	encoder.set_depth(png::BitDepth::Eight);
+
+	let mut writer = encoder.write_header().unwrap();
+	writer.write_image_data(&frame.pixels).unwrap();
 }

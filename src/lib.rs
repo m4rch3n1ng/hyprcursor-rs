@@ -14,6 +14,7 @@
 
 use self::manifest::Manifest;
 use self::meta::Meta;
+use png::Decoder as PngDecoder;
 use resvg::{
 	tiny_skia::Pixmap,
 	usvg::{Options, Transform, Tree},
@@ -25,7 +26,6 @@ use std::{
 	path::{Path, PathBuf},
 };
 use zip::ZipArchive;
-use zune_png::PngDecoder;
 
 mod error;
 mod manifest;
@@ -201,13 +201,20 @@ enum Data {
 }
 
 impl Data {
-	fn render(&self, size: u32) -> RenderData {
+	fn render(&self, size: u32) -> Vec<u8> {
 		match self {
 			Data::Png(data) => {
-				let mut decoder = PngDecoder::new(data);
-				let pixels = decoder.decode_raw().unwrap();
+				let data = std::io::Cursor::new(data);
+				let decoder = PngDecoder::new(data);
+				let mut reader = decoder.read_info().unwrap();
 
-				RenderData::Png(pixels)
+				let mut pixels = vec![0; reader.output_buffer_size()];
+				let info = reader.next_frame(&mut pixels).unwrap();
+
+				// todo convert other color types to rgba
+				assert_eq!(info.color_type, png::ColorType::Rgba);
+
+				pixels
 			}
 			Data::Svg(tree) => {
 				let transform = Transform::from_scale(
@@ -217,7 +224,8 @@ impl Data {
 
 				let mut pixmap = Pixmap::new(size, size).unwrap();
 				resvg::render(tree, transform, &mut pixmap.as_mut());
-				RenderData::Svg(pixmap)
+
+				pixmap.take()
 			}
 		}
 	}
@@ -314,53 +322,25 @@ impl Hyprcursor {
 	}
 }
 
-enum RenderData {
-	Svg(Pixmap),
-	Png(Vec<u8>),
-}
-
-impl Debug for RenderData {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			RenderData::Svg(_) => f.debug_struct("Svg").finish_non_exhaustive(),
-			RenderData::Png(_) => f.debug_list().entry(&..).finish(),
-		}
-	}
-}
-
 // todo figure out what to do with
 // the hotspot
 #[derive(Debug)]
 pub struct Frame {
-	data: RenderData,
 	pub size: u32,
+
 	pub delay: Option<u32>,
+
+	pub pixels: Vec<u8>,
 }
 
 impl Frame {
 	fn new(img: &Image, size: u32) -> Self {
-		let data = img.data.render(size);
+		let pixels = img.data.render(size);
 
 		Frame {
-			data,
 			size,
 			delay: img.delay,
+			pixels,
 		}
-	}
-
-	// todo i think this is rgba?
-	pub fn pixels(&self) -> &[u8] {
-		match &self.data {
-			RenderData::Svg(pixmap) => pixmap.data(),
-			RenderData::Png(pixels) => pixels,
-		}
-	}
-
-	pub fn width(&self) -> u32 {
-		self.size
-	}
-
-	pub fn height(&self) -> u32 {
-		self.size
 	}
 }

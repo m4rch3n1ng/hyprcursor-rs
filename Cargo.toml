@@ -7,10 +7,10 @@ repository = "https://github.com/m4rch3n1ng/hyprcursor-rs"
 license = "MPL-2.0"
 
 [dependencies]
+png = "0.17.14"
 resvg = { version = "0.44.0", default-features = false }
 thiserror = "1.0.64"
 zip = { version = "2.2.0", default-features = false, features = ["bzip2", "deflate", "deflate64", "lzma", "zstd"] }
-zune-png = "0.4.10"
 
 [features]
 default = []
