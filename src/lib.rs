@@ -114,7 +114,7 @@ impl HyprcursorTheme {
 				todo!();
 			} else {
 				Meta::from_hyprlang(&cursor_path, content).map_err(|err| {
-					let path = cursor_path.join(if is_toml { "meta.toml" } else { "meta.hl" });
+					let path = cursor_path.join("meta.hl");
 					Error::MetaError { err, path }
 				})?
 			};
