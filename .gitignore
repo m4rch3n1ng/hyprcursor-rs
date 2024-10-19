@@ -1,2 +1,6 @@
+# cargo
 /target/
+Cargo.lock
+
+# testing
 image.png
